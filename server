@@ -1,0 +1,171 @@
+import java.io.*;
+import java.net.*;
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+//a server is a public computer that anyone can use
+//We extend JFrame so that we can use the GUI
+public class Server extends JFrame{
+   //this is going to be the chat box where you write your message before being sent
+   private JTextField userText;
+   //this is going to be displaying the conversation
+   private JTextArea chatWindow;
+   //streams are like passageways where you con send stuff out and receive stuff in
+   /*output stream:the stream that flows from you computer to someone elses 
+   computer(i.e. your friend). Ouput goes away from you.*/
+   private ObjectOutputStream output;
+   /*input stream:the stream that goes from someone elses computer to yours
+   .Input goes to you.*/
+   private ObjectInputStream input;
+   private ServerSocket server;
+   //socket is basically a connection that connects your computer to someone elses.
+   private Socket connection;
+   
+   //constructor
+   public Server() {
+      super("Ronaldo's Instant Messenger");
+      userText = new JTextField();//actually creates a TextField
+      /*we setEditble to false since we don't want our user to write and
+      send a message when no one is there, this is because this would
+      produce a lot of errors.*/
+      userText.setEditable(false);
+      userText.addActionListener (//anonymus inner class
+         new ActionListener() {//action Listener class
+            public void actionPerformed(ActionEvent event) {//inherited method
+               //getActionCommand() gets whatever string you typed in the TextField
+               sendMessage(event.getActionCommand());
+               /*once we send the message we reset the textField to a blank
+               space, so that your message doesnt just sit there.*/
+               userText.setText("");
+            }
+         }  
+      );
+      add(userText,BorderLayout.NORTH);//add userText to top of screen
+      //actually create a chat window which is where all of your and friends messages are diplayed
+      chatWindow = new JTextArea();
+      add(new JScrollPane(chatWindow));//add the chatwindow to the screen with a scroll wheel
+      setSize(300,150);//set size of program
+      setVisible(true);//make program visible
+   }
+   //set up and run the server
+   public void startRunning() {
+      try{
+         /*the first param. is the port number, this is the location of your
+         program.*/
+         /*the second para. is the backlog, and its how many people are allowed 
+         to wait and sit in your port to talk to you.*/
+         server = new ServerSocket(6789,100);
+         while(true){//always running
+            try{
+            //connect and have a conversation
+               waitForConnection();//starts up and wait for someone to connect with
+               setupStreams();//once connected we setup a conneciton/stream bw 2 computers
+               whileChatting();//when youre connected you'll be able to chat
+            //EOFException is when the stream ends 
+            }catch(EOFException eofException){
+               //when the conversation ends we'll diplay this
+               showMessage("\n Server ended the connection!");
+            }finally{
+               closeCrap();//housekeeping(end streams, close sockets)
+            }
+         }
+      }catch(IOException ioException) {
+         ioException.printStackTrace();//this allows us to see what we did wrong
+      }
+   }
+   //wait for connection, then display connection information
+   private void waitForConnection() throws IOException {
+      showMessage("Wait for someone to connect...\n");
+      //only once you have a conenction a socket is created b/w you and another computer
+      connection = server.accept();
+      //getInetAddress() returns address of where the socket is located
+      //getHostName() return the IP address as a string
+      showMessage("Now connected to " + connection.getInetAddress().getHostName());
+   }
+   //get stream to send and receive data
+   private void setupStreams() throws IOException {
+      //this is how you set up the pathways to send stuff out
+      output = new ObjectOutputStream(connection.getOutputStream());
+      output.flush();//gets rid of left behind data out of stream(good housekeeping)
+      //this is how you set up the pathways to receive stuff from someone else
+      input = new ObjectInputStream(connection.getInputStream());
+      //we only put flush() inside our output bc you cant flush data from someone else
+      showMessage("\n Streams are now setup! \n");
+   }
+   //during the chat conversation
+   private void whileChatting() throws IOException {
+      String message = "You are now connected!";
+      sendMessage(message);
+      ableToType(true);//allows the user to type in the chat box
+      do{//have a conversation
+         try{
+            /*we read the data being reecived(input) as an object and make sure that 
+            it's a string, once we do this we set the string equal to our variable "message".*/
+            message = (String) input.readObject();
+            //it displays the message on the screen on a new line
+            showMessage("\n" + message);
+         }catch(ClassNotFoundException classNotFoundException){
+            //this shows up whenever the user sends something that's not a string
+            showMessage("\n idk wtf that user sent!");
+         }finally{
+            closeCrap();//closes all the streams and sockets, etc.(housekeeping)
+         }
+      
+      //while the user does not input "END" the program will keep running, otherwise it will stop immediatly
+      }while(!message.equals("CLIENT - END"));
+   }
+   //close streams and sockets after you are done chatting
+   private void closeCrap(){
+      showMessage("\n Closing connections...\n");
+      ableToType(false);//with this the user is no longer able to type
+      try{
+         //close to not waste up memory
+         output.close();//with this you are no longer able to send messages
+         input.close();//with this you are no longer able to receive messages
+         connection.close();//closes the sockets
+      }catch(IOException ioException){
+         ioException.printStackTrace();//shows error message
+      }  
+   }
+   //send a message to client
+   private void sendMessage(String message){
+      try{
+         /*this is going to show who sent the message, in this case "SERVER"
+         and then the message. It's able to send a message by writing an object
+         and then sending it through the output stream from our computer to theirs.*/
+         output.writeObject("SERVER - " +  message);
+         output.flush();//push extra bytes out(housekeeping)
+         showMessage("\nSERVER - " + message);//show message on the screen on a new line
+      }catch(IOException ioException){
+         //on the chat window the error is gonna show
+         chatWindow.append("\n ERROR: DUDE I CANT SEND THAT MESSAGE");
+      }
+   }
+   //updates chatWindow
+   private void showMessage(final String text){//takes in a string 
+      SwingUtilities.invokeLater(//anonymus inner class
+         new Runnable(){//created a thread
+            public void run(){//whenever we update the GUI this method is called
+               /*append the message sent to the chat window and then only update
+               the chat window part of the GUI.*/
+               chatWindow.append(text);
+            }
+         }
+      );
+   }
+   //let the user type stuff into their box
+   private void ableToType(final boolean tof){
+      SwingUtilities.invokeLater(//anonymus inner class
+         new Runnable(){//created a thread
+            public void run(){//whenever we update the GUI this method is called
+               /*append the message sent to the chat window and then only update
+               the chat window part of the GUI.*/
+               //tof gets passed in and updates the GUI userText box
+               //it will be gray if its false
+               //you'll be able to type stuff in if its true
+               userText.setEditable(tof);
+            }
+         }
+      );
+   }
+}
