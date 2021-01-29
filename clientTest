@@ -1,0 +1,12 @@
+import javax.swing.JFrame;
+public class ClientTest{
+   public static void main(String[] args){
+   //"127.0.0.1" means local host or the computer that you're at rn
+   //^^^this is only for testing purposes
+   //if you want to put the server program on an actual server you need to change the IP address
+   //GUI is created here
+      Client charli = new Client("127.0.0.1");//constructor need the IP address
+      charli.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+      charli.startRunning();//actually starts the program(brains)
+   }
+}
