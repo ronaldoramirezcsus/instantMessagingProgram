@@ -1,0 +1,140 @@
+import java.io.*;
+import java.net.*;
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+public class Client extends JFrame{//inherit from JFrame
+   private JTextField userText;
+   private JTextArea chatWindow;
+   private ObjectOutputStream output;
+   private ObjectInputStream input;
+   private String message = "";
+   private String serverIP;//IP address of the server
+   private Socket connection;
+   
+   //constructor
+   public Client(String host){
+      super("Client!");//title
+      serverIP = host;//setting the variable to the value that we pass in
+      userText = new JTextField();
+      //we set the editability to false so that they can't write while they're not connected
+      userText.setEditable(false);
+      userText.addActionListener(
+         new ActionListener(){
+            public void actionPerformed(ActionEvent event){
+               //this method is going to send the messages
+               sendMessage(event.getActionCommand());
+               userText.setText("");//resets the message to blank
+            }
+         }
+      );
+      add(userText, BorderLayout.NORTH);//adds where you can type at the top of the screen
+      chatWindow = new JTextArea();
+      add(new JScrollPane(chatWindow), BorderLayout.CENTER);//adds a window w scroll wheel
+      setSize(300,150);
+      setVisible(true);
+   
+   }
+   //connect to server
+   public void startRunning(){
+      try{
+         //connect to one specific server, which is why we needed the IP address
+         connectToServer();
+         setupStreams();
+         whileChatting();
+      }catch(EOFException eofException){
+         showMessage("\n Client terminated the connection");//this happens when the conversation ends
+      }catch(IOException ioException){
+         ioException.printStackTrace();//prints the errors
+      }finally{
+         closeCrap();//close streams ans sockets(housekeeping)
+      }
+   }
+   //connect to server
+   private void connectToServer() throws IOException{
+      showMessage("Attempting connection...\n");//attemps connection
+      //when connection is made we create a socket
+      //the client program connect to a port in a computer
+      //passes in the IP address
+      connection = new Socket(InetAddress.getByName(serverIP), 6789);
+      //displays the IP address
+      //we call "connection" because thats the socket where the info. flows through
+      showMessage("Connected to:" + connection.getInetAddress().getHostName());
+   }
+   //set up strems to send and receive messages
+   private void setupStreams() throws IOException{
+      //allows you to send messages
+      output = new ObjectOutputStream(connection.getOutputStream());
+      output.flush();//gets rid of left over bytes of info.
+      //allows you to receive messages 
+      input = new ObjectInputStream(connection.getInputStream());
+      showMessage("\n Streams are now good to go! \n");
+   }  
+   //while chatting with server
+   private void whileChatting() throws IOException{ 
+      ableToType(true);//makes sure user is able to type
+      do{
+         try{
+            /*we read the data being reecived(input) as an object and make sure that 
+            it's a string, once we do this we set the string equal to our variable "message".*/
+            message = (String) input.readObject();
+            showMessage("\n" + message);
+         }catch(ClassNotFoundException classNotFoundException){
+            //whenever we get a message that isn't a string this shows
+            showMessage("\n I don't know that object type");
+         }
+      //while the user does not input "END" the program will keep running, otherwise it will stop immediatly
+      }while(!message.equals("SERVER - END"));
+   }
+   //close the streams and sockets
+   private void closeCrap(){
+      showMessage("\n closing crap down...");
+      //as we close the program we want the user to no longer be able to type
+      ableToType(false);
+      try{
+         output.close();//closes output stream
+         input.close();//closes input stream
+         connection.close();//closes the socket
+      }catch(IOException ioException){
+         ioException.printStackTrace();//prints the eroor on the screen
+      }
+   }
+   //send messages to server
+   //takes in a string as a param.
+   private void sendMessage(String message){
+      try{
+         //this makes the "message" string into an object and sends it through the output stream
+         output.writeObject("CLIENT - " + message);
+         output.flush();//flush leftover data
+         showMessage("\nCLIENT - " + message);//displays message on the screen
+      }catch(IOException ioException){
+         //this appends the string to the chat window
+         chatWindow.append("\n something messed up sending message!");
+      }
+   }
+   //change or update chat window
+   private void showMessage(final String m){
+      SwingUtilities.invokeLater(
+         new Runnable(){
+            public void run(){
+               /*shows the message at the end of the conversation(string), this
+               is what append() does.*/
+               chatWindow.append(m);
+            }
+         }
+      );
+   
+   }
+   //gives user permision to type crap into the text box
+   private void ableToType(final boolean tof){
+       SwingUtilities.invokeLater(
+         new Runnable(){
+            public void run(){
+               /*makes the text box editable or not editable depending on the
+               boolean param. passed.*/
+               userText.setEditable(tof);
+            }
+         }
+      );
+   }
+}
